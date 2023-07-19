@@ -23,9 +23,9 @@ struct ContentView: View {
                     ParallaxLayer(image: Image("depth-2"), magnitude : 10)
                     ParallaxLayer(image: Image("depth-3"), magnitude : 10)
 #elseif os(macOS)
-                    ParallaxLayer(image: Image("depth-1"), speed: 1)
-                    ParallaxLayer(image: Image("depth-2"), speed: 3)
-                    ParallaxLayer(image: Image("depth-3"), speed: 5)
+                    ParallaxLayer(image: Image("depth-1"), speed: 10)
+                    ParallaxLayer(image: Image("depth-2"), speed: 30)
+                    ParallaxLayer(image: Image("depth-3"), speed: 50)
 #endif
                 }
             }
@@ -96,58 +96,70 @@ public class MotionManager: ObservableObject {
 #elseif os(macOS)
 @available(macOS 10.15, *)
 public struct ParallaxLayer: View {
-    var image: Image
-    var speed: CGFloat
+    let image: Image
     
-    @State private var xOffset: CGFloat = 0
-    @State private var yOffset: CGFloat = 0
+    let speed: CGFloat
+    
+//    @State private var xOffsetOld: CGFloat = 0
+//    @State private var yOffsetOld: CGFloat = 0
+    
+    @State private var absXOffset: CGFloat = 0
+    @State private var absYOffset: CGFloat = 0
+    
     @State private var isMouseInside: Bool = false
-    @State private var lastMousePosition: CGPoint = .zero
+    @State private var previousMousePosition: CGPoint = .zero
     
     public var body: some View {
-        image
-            .offset(x: xOffset, y: yOffset)
-            .onAppear {
-                NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .mouseEntered, .mouseExited]) { event in
-                    guard let window = NSApp.windows.first(where: { $0.isVisible }),
-                          let contentView = window.contentView else {
+            image
+                .offset(x: absXOffset, y: absYOffset)
+                .onAppear {
+                    NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .mouseEntered, .mouseExited]) { event in
+                        guard let window = NSApp.windows.first(where: { $0.isVisible }),
+                              let contentView = window.contentView else {
+                            return event
+                        }
+                        
+                        let mouseLocation = event.locationInWindow
+                        let mouseInView = contentView.convert(mouseLocation, from: nil)
+                        
+                        if event.type == .mouseEntered {
+                            isMouseInside = true
+                        } else if event.type == .mouseExited {
+                            isMouseInside = false
+                        }
+                        
+                        if isMouseInside {
+                            let windowRect = window.frame
+                            let windowOrigin = windowRect.origin
+                            
+                            let windowCenter = NSPoint(x: windowOrigin.x + windowRect.width / 2, y: windowOrigin.y + windowRect.height / 2)
+                            
+                            let mousePosRelatedToWndCenter = NSPoint(x: mouseInView.x - windowCenter.x, y: mouseInView.y - windowCenter.y)
+                            
+                            /// -1...1 * speed
+                            let tempAbsXOffset = (mouseInView.x / windowRect.width  - 0.5) * 2 * speed
+                            
+                            let delta = abs(absXOffset - tempAbsXOffset)
+                            
+                            absXOffset += (tempAbsXOffset - absXOffset) / (speed / 10)
+                            
+                            
+                            previousMousePosition = mousePosRelatedToWndCenter
+                        }
+                        
                         return event
                     }
-                    
-                    let mouseLocation = event.locationInWindow
-                    let mouseInView = contentView.convert(mouseLocation, from: nil)
-                    
-                    if event.type == .mouseEntered {
-                        isMouseInside = true
-                    } else if event.type == .mouseExited {
-                        isMouseInside = false
-                    }
-                    
-                    if isMouseInside {
-                        let windowRect = window.frame
-                        
-                        let windowOrigin = windowRect.origin
-                        let windowLocation = NSPoint(x: windowOrigin.x + windowRect.width/2, y: windowOrigin.y + windowRect.height/2)
-                        
-                        let convertedMouseInView = NSPoint(x: mouseInView.x - windowLocation.x, y: mouseInView.y - windowLocation.y)
-                        
-                        xOffset = (convertedMouseInView.x / 50) * speed
-                        yOffset = (convertedMouseInView.y / 50) * speed
-                        
-                        lastMousePosition = convertedMouseInView
-                    } else {
-                        xOffset = (lastMousePosition.x / 50) * speed
-                        yOffset = (lastMousePosition.y / 50) * speed
-                    }
-                    
-                    return event
-                }
-            }
+                
+        }
     }
-    
+
     public init(image: Image, speed: CGFloat = 1) {
         self.image = image
         self.speed = speed
     }
 }
+
+
+
+
 #endif
