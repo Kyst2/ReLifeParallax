@@ -13,6 +13,8 @@ struct ContentView: View {
     
 //    @ObservedObject var manager = MotionManager()
     
+    let ease: Ease = .InQuart
+    
     var body: some View {
         Spacer()
             .frame(minWidth: 300, minHeight: 300)
@@ -23,9 +25,9 @@ struct ContentView: View {
                     ParallaxLayer(image: Image("depth-2"), magnitude : 10)
                     ParallaxLayer(image: Image("depth-3"), magnitude : 10)
 #elseif os(macOS)
-                    ParallaxLayer(image: Image("depth-1"), speed: 10)
-                    ParallaxLayer(image: Image("depth-2"), speed: 30)
-                    ParallaxLayer(image: Image("depth-3"), speed: 50)
+                    ParallaxLayer(image: Image("depth-1"), speed: 10, ease: ease )
+                    ParallaxLayer(image: Image("depth-2"), speed: 30, ease: ease )
+                    ParallaxLayer(image: Image("depth-3"), speed: 50, ease: ease )
 #endif
                 }
             }
@@ -97,8 +99,8 @@ public class MotionManager: ObservableObject {
 @available(macOS 10.15, *)
 public struct ParallaxLayer: View {
     let image: Image
-    
     let speed: CGFloat
+    let ease: Ease
     
 //    @State private var xOffsetOld: CGFloat = 0
 //    @State private var yOffsetOld: CGFloat = 0
@@ -136,14 +138,25 @@ public struct ParallaxLayer: View {
                             
                             let mousePosRelatedToWndCenter = NSPoint(x: mouseInView.x - windowCenter.x, y: mouseInView.y - windowCenter.y)
                             
+//                            /// -1...1 * speed
+//                            let tempAbsXOffset = (mouseInView.x / windowRect.width - 0.5) * 2 * speed
+//                            let tempAbsYOffset = (mouseInView.y / windowRect.width - 0.5) * 2 * speed
+                            
+                            
                             /// -1...1 * speed
-                            let tempAbsXOffset = (mouseInView.x / windowRect.width  - 0.5) * 2 * speed
+                            let deltaXRel = (mouseInView.x / windowRect.width - 0.5) * 2 * speed
+                            let deltaYRel = (mouseInView.y / windowRect.width - 0.5) * 2 * speed
                             
-                            let delta = abs(absXOffset - tempAbsXOffset)
+//                            let speedMultX = ease.asFunc(x: deltaXRel)
+//                            let speedMultY = ease.asFunc(x: deltaYRel)
                             
-                            absXOffset += (tempAbsXOffset - absXOffset) / (speed / 10)
+                            absXOffset += (deltaXRel - absXOffset) / (speed / 10)
+                            absYOffset += (deltaYRel - absYOffset) / (speed / 10)
                             
                             
+                            
+//                             print("X:\(absXOffset)")
+                            print("Y:\(absYOffset)")
                             previousMousePosition = mousePosRelatedToWndCenter
                         }
                         
@@ -152,14 +165,48 @@ public struct ParallaxLayer: View {
                 
         }
     }
-
-    public init(image: Image, speed: CGFloat = 1) {
+    
+    public init(image: Image, speed: CGFloat = 1, ease: Ease) {
         self.image = image
         self.speed = speed
+        self.ease = ease
     }
 }
 
 
 
 
+
+
 #endif
+
+
+public enum Ease {
+    case InOutBack
+    case InSine
+    case InQuart
+    case OutExpo
+}
+
+extension Ease {
+    func asFunc(x: CGFloat) -> CGFloat {
+        switch self {
+        case .InOutBack:
+            let c1 = 1.70158;
+            let c2 = c1 * 1.525
+            
+            return x < 0.5
+              ? (pow(2 * x, 2) * ((c2 + 1) * 2 * x - c2)) / 2
+              : (pow(2 * x - 2, 2) * ((c2 + 1) * (x * 2 - 2) + c2) + 2) / 2
+            
+        case .InSine:
+            return 1 - cos(x * .pi / 2)
+            
+        case .InQuart:
+            return x * x * x * x
+            
+        case .OutExpo:
+            return x == 1 ? 1 : 1 - pow(2, -10 * x)
+        }
+    }
+}
